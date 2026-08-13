@@ -58,8 +58,8 @@ if uploaded_file is not None:
         if uploaded_file.name.endswith('.csv'):
             df = pd.read_csv(uploaded_file)
         else:
-            df = pd.read_excel(uploaded_file)
-            
+            df = pd.read_excel(uploaded_file,header=7,sheet_name='result')
+            df.drop(['조회수','좋아요수','RT수'], axis=1, inplace=True)
         st.success("파일 업로드 완료! 아래 데이터 미리보기를 확인하세요.")
         st.dataframe(df.head())
         
