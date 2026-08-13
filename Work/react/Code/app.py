@@ -53,8 +53,10 @@ if uploaded_file is not None:
             df = pd.read_csv(uploaded_file)
         else:
             df = pd.read_excel(uploaded_file,header=7,sheet_name='result')
-            df.drop(['조회수','좋아요수','RT수'], axis=1, inplace=True)
+            # 열이 없어도 에러가 나지 않도록 errors='ignore' 추가
+            df.drop(['조회수','좋아요수','RT수'], axis=1, inplace=True, errors='ignore')
             df = df[df['URL'].str.contains('youtube.com', na=False)]
+            
         st.success("파일 업로드 완료! 아래 데이터 미리보기를 확인하세요.")
         st.dataframe(df.head())
         
@@ -63,42 +65,53 @@ if uploaded_file is not None:
         
         # 실행 버튼
         if st.button("댓글 수 업데이트 시작", type="primary"):
-            # 진행 상태 표시 준비
-            progress_bar = st.progress(0)
-            status_text = st.empty()
+            
+            # [핵심 1] 뷰(View) 충돌을 막기 위해 inplace 대신 변수에 직접 덮어씌워 인덱스를 완벽히 초기화합니다.
+            df = df.reset_index(drop=True)
             
             total_rows = len(df)
-            comment_counts = []
             
-            # 각 행을 순회하며 API 호출
-            for index, row in df.iterrows():
-                url = row[url_column]
-                count = get_comment_count_api(url)
-                comment_counts.append(count)
+            # [방어 로직] 필터링 후 남은 데이터가 없는 경우 처리
+            if total_rows == 0:
+                st.warning("분석할 유효한 URL 데이터가 없습니다.")
+            else:
+                progress_bar = st.progress(0.0)
+                status_text = st.empty()
                 
-                # 진행률 업데이트
-                current_progress = (index + 1) / total_rows
-                progress_bar.progress(current_progress)
-                status_text.text(f"처리 중... ({index + 1}/{total_rows})")
-            
-            # 수집된 데이터를 새로운 열로 추가
-            df['최신_댓글수'] = comment_counts
-            
-            st.success("모든 데이터 업데이트가 완료되었습니다!")
-            st.dataframe(df)
-            
-            # 결과를 엑셀 파일로 메모리에 저장 (서버에 파일 남기지 않음)
-            output = io.BytesIO()
-            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                df.to_excel(writer, index=False, sheet_name='Sheet1')
-            excel_data = output.getvalue()
-            
-            # 다운로드 버튼 제공
-            st.download_button(
-                label="📥 업데이트된 엑셀 파일 다운로드",
-                data=excel_data,
-                file_name="youtube_comments_updated.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+                comment_counts = []
+                
+                # [핵심 2] iterrows 대신 range를 사용하여 인덱스가 꼬일 가능성을 0%로 만듭니다.
+                for i in range(total_rows):
+                    # loc를 사용하여 0부터 시작하는 i번째 행의 데이터를 안전하게 가져옵니다.
+                    url = df.loc[i, url_column]
+                    count = get_comment_count_api(url)
+                    comment_counts.append(count)
+                    
+                    # 진행률 계산 (i + 1 은 절대 total_rows를 넘을 수 없습니다)
+                    progress_value = (i + 1) / total_rows
+                    
+                    # [핵심 3] 부동소수점 연산 오차로 인해 1.0을 아주 미세하게 초과하는 것을 차단합니다.
+                    progress_bar.progress(min(progress_value, 1.0))
+                    status_text.text(f"처리 중... ({i + 1}/{total_rows})")
+                
+                # 수집된 데이터를 새로운 열로 추가
+                df['최신_댓글수'] = comment_counts
+                
+                st.success("모든 데이터 업데이트가 완료되었습니다!")
+                st.dataframe(df)
+                
+                # 결과를 엑셀 파일로 메모리에 저장 (서버에 파일 남기지 않음)
+                output = io.BytesIO()
+                with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                    df.to_excel(writer, index=False, sheet_name='Sheet1')
+                excel_data = output.getvalue()
+                
+                # 다운로드 버튼 제공
+                st.download_button(
+                    label="📥 업데이트된 엑셀 파일 다운로드",
+                    data=excel_data,
+                    file_name="youtube_comments_updated.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
     except Exception as e:
         st.error(f"파일을 읽는 중 오류가 발생했습니다: {e}")
