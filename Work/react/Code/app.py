@@ -4,6 +4,7 @@ import requests
 import re
 import io
 import os
+from streamlit_ace import st_ace
 
 # -------------------------------------------------------------
 # 1. 유튜브 API 처리 함수
@@ -129,14 +130,16 @@ with open(current_file_path, "r", encoding="utf-8") as f:
     current_code = f.read()
 
 # 텍스트 에디터 위젯에 현재 코드를 띄우고, 수정된 내용을 변수에 담기
-edited_code = st.text_area("이곳에서 코드를 직접 수정하세요:", value=current_code, height=400)
+edited_code = st_ace(
+    value=current_code,
+    language='python',
+    theme='monokai',
+    keybinding='vscode',
+    font_size=14,
+    min_lines=20
+)
 
-# 적용 버튼
-if st.button("코드 저장 및 앱 재실행"):
-    # 수정된 코드를 실제 파이썬 파일에 덮어쓰기
+if st.button("코드 덮어쓰기 및 재실행"):
     with open(current_file_path, "w", encoding="utf-8") as f:
         f.write(edited_code)
-    
-    st.success("코드가 성공적으로 업데이트되었습니다. 앱을 다시 로드합니다.")
-    # Streamlit 앱 즉시 새로고침
     st.rerun()
