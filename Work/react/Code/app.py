@@ -98,8 +98,7 @@ if uploaded_file is not None:
                 df['최신_댓글수'] = comment_counts
                 
                 st.success("모든 데이터 업데이트가 완료되었습니다!")
-                st.dataframe(df)
-                
+                st.dataframe(df)                
                 # 결과를 엑셀 파일로 메모리에 저장 (서버에 파일 남기지 않음)
                 output = io.BytesIO()
                 with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
@@ -113,5 +112,7 @@ if uploaded_file is not None:
                     file_name="youtube_comments_updated.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
+                st.write(f'총 업데이트 된 총 댓글 수: {df['최신_댓글수'].sum()}')
+                
     except Exception as e:
         st.error(f"파일을 읽는 중 오류가 발생했습니다: {e}")
