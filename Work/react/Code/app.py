@@ -3,6 +3,7 @@ import pandas as pd
 import requests
 import re
 import io
+import os
 
 # -------------------------------------------------------------
 # 1. 유튜브 API 처리 함수
@@ -116,3 +117,26 @@ if uploaded_file is not None:
                 
     except Exception as e:
         st.error(f"파일을 읽는 중 오류가 발생했습니다: {e}")
+
+st.divider()
+st.subheader("🛠️ 인앱 코드 에디터 (빠른 수정용)")
+
+# 현재 실행 중인 파이썬 파일의 절대 경로 가져오기
+current_file_path = os.path.abspath(__file__)
+
+# 현재 코드 읽어오기
+with open(current_file_path, "r", encoding="utf-8") as f:
+    current_code = f.read()
+
+# 텍스트 에디터 위젯에 현재 코드를 띄우고, 수정된 내용을 변수에 담기
+edited_code = st.text_area("이곳에서 코드를 직접 수정하세요:", value=current_code, height=400)
+
+# 적용 버튼
+if st.button("코드 저장 및 앱 재실행"):
+    # 수정된 코드를 실제 파이썬 파일에 덮어쓰기
+    with open(current_file_path, "w", encoding="utf-8") as f:
+        f.write(edited_code)
+    
+    st.success("코드가 성공적으로 업데이트되었습니다. 앱을 다시 로드합니다.")
+    # Streamlit 앱 즉시 새로고침
+    st.rerun()
