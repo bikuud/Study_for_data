@@ -34,8 +34,8 @@ print("Crawler.py 실행: debug-attached-v1")
 # Supabase 설정
 # ============================================================
 
-SUPABASE_KEY='sb_publishable_DVlQhSuIouv53mYz9NAFSQ_WBuLqavM'
-SUPABASE_URL='https://jjnlqyxgxtzxeirksgqq.supabase.co'
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 supabase: Client=create_client(SUPABASE_URL, SUPABASE_KEY)
 
 

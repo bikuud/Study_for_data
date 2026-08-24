@@ -1,0 +1,51 @@
+name: DCInside Crawler
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "1 * * * *"   # KST 매시 10분
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: Work/Playwright
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python packages
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Install Chromium
+        run: python -m playwright install --with-deps chromium
+
+      - name: Run crawler
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          HEADLESS: "true"
+        run: python Crawler.py
+
+      - name: Upload debug files on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crawler-debug-files
+          path: |
+            Work/Playwright/debug_timeout.png
+            Work/Playwright/debug_timeout.html
+          if-no-files-found: ignore
+          retention-days: 7
