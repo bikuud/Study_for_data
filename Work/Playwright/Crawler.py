@@ -95,7 +95,7 @@ def normalize_date(date_text: str) -> str:
     if re.fullmatch(r"\d{4}-\d{2}-\d{2}", clean_date):
         return clean_date
 
-    return f"20{clean_date}"
+    return f"{datetime.now(KST).year}-{clean_date}"
 
 
 async def save_debug_files(page) -> None:
