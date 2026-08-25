@@ -21,7 +21,7 @@ TABLE_NAME = "practice_DB"
 
 # 로컬 PC에서 화면을 보며 테스트할 때 False
 # GitHub Actions로 돌릴 때 True
-HEADLESS = False
+HEADLESS = True
 
 # 한 페이지를 최대 몇 페이지까지 확인할지
 MAX_PAGES = 9
