@@ -24,7 +24,7 @@ TABLE_NAME = "practice_DB"
 HEADLESS = True
 
 # 한 페이지를 최대 몇 페이지까지 확인할지
-MAX_PAGES = 9
+MAX_PAGES = 20
 
 # 스크립트가 수정된 파일인지 확인하기 위한 출력
 print("Crawler.py 실행: debug-attached-v1")
@@ -285,12 +285,14 @@ async def main() -> None:
         return
 
     # DB에는 오래된 글부터 저장
+    all_data = list({row["post_num"]: row for row in all_data}.values())
     all_data.sort(key=lambda row: row["post_num"])
+    
 
     print(f"\n총 {len(all_data)}건 수집 완료. Supabase 저장을 시작합니다.")
 
     try:
-        response = supabase.table(TABLE_NAME).insert(all_data).execute()
+        response = (supabase.table(TABLE_NAME).upsert(all_data,on_conflict="post_num",ignore_duplicates=True)).execute()
         saved_count = len(response.data) if response.data else len(all_data)
         print(f"Supabase 저장 완료: {saved_count}건")
 
