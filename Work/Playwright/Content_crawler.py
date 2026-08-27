@@ -28,6 +28,33 @@ if not SUPABASE_URL or not SUPABASE_KEY:
 supabase:Client= create_client(SUPABASE_URL, SUPABASE_KEY)
 
 
+def seed_content_queue(last_post_num :int):
+    response=(
+        supabase
+        .table("practice_DB")
+        .select("post_num")
+        .execute()
+    )
+    
+    rows=[
+        {
+            "post_num":row["post_num"],
+            "content_status":"pending",
+            
+        } for row in response.data
+    ]
+    
+    (
+        supabase
+        .table("content_DB")
+        .upsert(
+            rows,
+            on_conflict="post_num"
+        )
+        .execute()
+    )
+    
+
 def get_postnum() -> list:
     """크롤링 해야하는 대상 게시글 번호 찾기"""
     try:
