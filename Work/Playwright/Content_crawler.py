@@ -11,7 +11,7 @@ GALLERY_ID = "hanwhaeagles_new"
 SOURCE_DB = "practice_DB"
 TARGET_DB = "content_DB"
 
-CRAWL_LIMIT = 100
+CRAWL_LIMIT = 10
 SYNC_LIMIT = 1000
 HEADLESS = False
 
@@ -123,7 +123,7 @@ async def crawl_contents(page, post_numbers: list[int]) -> list[dict]:
                 {
                     "post_num": post_num,
                     "content": content,
-                    "crawled_at": datetime.now(timezone.utc).isoformat(),
+                    "crawled_at":  datetime.now(ZoneInfo("Asia/Seoul")).isoformat(timespec="seconds")
                 }
             )
 
