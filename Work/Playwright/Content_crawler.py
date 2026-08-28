@@ -2,98 +2,186 @@ import os
 import re
 import asyncio
 from datetime import datetime, timezone, timedelta
-from playwright.async_api import async_playwright
+from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeoutError
 from supabase import create_client, Client
+
 KST=timezone(timedelta(hours=9))
 GALLERY_ID = "hanwhaeagles_new"
+
+SOURCE_DB = "practice_DB"
 TARGET_DB = "content_DB"
-FK_DB="practice_DB"
+
+CRAWL_LIMIT = 100
+SYNC_LIMIT = 1000
+HEADLESS = False
 
 
-HEADLESS=True
 
-print('Content_crawler.py 실행')
-# 깃허브 업로드 시 삭제
 SUPABASE_KEY='sb_publishable_DVlQhSuIouv53mYz9NAFSQ_WBuLqavM'
 SUPABASE_URL='https://jjnlqyxgxtzxeirksgqq.supabase.co'
 
-##SUPABASE_URL=os.getenv("SUPABASE_URL")
-##SUPABASE_KEY=os.getenv("SUPABASE_KEY")
-
 if not SUPABASE_URL or not SUPABASE_KEY:
-    raise ValueError(
-        "\n SUPABASE_URL 또는 SUPABASE_KEY가 설정되지 않았습니다."
-    )
-    
-supabase:Client= create_client(SUPABASE_URL, SUPABASE_KEY)
+    raise ValueError("SUPABASE_URL 또는 SUPABASE_KEY가 설정되지 않았습니다.")
+
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 
-def seed_content_queue(last_post_num :int):
-    response=(
-        supabase
-        .table("practice_DB")
-        .select("post_num")
-        .execute()
-    )
-    
-    rows=[
-        {
-            "post_num":row["post_num"],
-            "content_status":"pending",
-            
-        } for row in response.data
-    ]
-    
-    (
-        supabase
-        .table("content_DB")
-        .upsert(
-            rows,
-            on_conflict="post_num"
+def sync_post_numbers(limit: int = SYNC_LIMIT) -> int:
+    """practice_DB의 게시글 번호와 작성일을 content_DB에 동기화한다."""
+    try:
+        response = (
+            supabase.table(SOURCE_DB)
+            .select("post_num, date")
+            .not_.is_("post_num", "null")
+            .order("post_num", desc=True)
+            .limit(limit)
+            .execute()
         )
-        .execute()
-    )
-    
 
-def get_postnum() -> list:
-    """크롤링 해야하는 대상 게시글 번호 찾기"""
-    try:
-        response=supabase.table(FK_DB).select("post_num").order("post_num", desc=False).limit(100).execute()
-        target_gall_num=[row["post_num"] for row in response.data]
-        
-        print(f'조회 건수:{len(response.data)}')
-        print(target_gall_num)
-        return target_gall_num
-                
+        rows = [
+            {
+                "post_num": row["post_num"],
+                "created_at": row.get("date"),
+            }
+            for row in (response.data or [])
+        ]
+
+        if not rows:
+            print("동기화할 게시글 번호가 없습니다.")
+            return 0
+
+        (
+            supabase.table(TARGET_DB)
+            .upsert(
+                rows,
+                on_conflict="post_num",
+                ignore_duplicates=True,
+            )
+            .execute()
+        )
+
+        print(f"게시글 번호 동기화 완료: {len(rows)}건")
+        return len(rows)
+
     except Exception as e:
-        print('게시글 번호 조회 실패')
+        print(f"게시글 번호 동기화 실패: {e}")
+        return 0
 
-# 맨 위에 글 번호 전체를 가져오는 로직을 한 다음에, 다음부턴 증분만 가져와서 컬럼을 등록하는 방법을 쓰자
 
-
-async def content_crawler(page, url:str, post_num: int) ->str:
-    """게시물 번호를 기반으로 콘텐츠를 크롤링합니다."""
-    
+def get_target_post_numbers(limit: int = CRAWL_LIMIT) -> list[int]:
+    """아직 크롤링되지 않은 게시글 번호를 조회한다."""
     try:
-        response=await page.goto(url,
-                                 wait_untill="domcontentloaded",
-                                 timeout=60_000)
-        
-    except:
-        print("url에 접속할 수 없습니다.")
-        
-    content_locator=page.locator("div.write_div").first
-    await content_locator.wait_for(timeout=10_000)
-    content=(await content_locator.inner_text()).strip()
-    
-    try:
-        
-        print(f"게시글 번호 {post_num} 크롤링을 시작합니다.")
-        print('='*40)
-        print('게시글 수집을 성공했습니다.')
-        return content
-        
+        response = (
+            supabase.table(TARGET_DB)
+            .select("post_num")
+            .is_("crawled_at", "null")
+            .order("post_num", desc=False)
+            .limit(limit)
+            .execute()
+        )
+
+        post_numbers = [
+            row["post_num"]
+            for row in (response.data or [])
+            if row.get("post_num") is not None
+        ]
+
+        print(f"크롤링 대상: {len(post_numbers)}건")
+        return post_numbers
+
     except Exception as e:
-        print(f'게시글이 제대로 수집되지 않았습니다 post_num={post_num} | {e}')
-        return None
-    
+        print(f"크롤링 대상 조회 실패: {e}")
+        return []
+
+
+async def crawl_contents(page, post_numbers: list[int]) -> list[dict]:
+    """게시글 번호 목록의 본문을 수집한다."""
+    results = []
+
+    for post_num in post_numbers:
+        url = f"https://gall.dcinside.com/board/view/?id={GALLERY_ID}&no={post_num}"
+
+        try:
+            print(f"게시글 {post_num} 수집 시작")
+
+            await page.goto(
+                url,
+                wait_until="domcontentloaded",
+                timeout=60_000,
+            )
+
+            content_locator = page.locator("div.write_div").first
+            await content_locator.wait_for(state="visible", timeout=10_000)
+
+            content = (await content_locator.inner_text()).strip()
+
+            if not content:
+                print(f"게시글 {post_num}: 본문이 비어 있습니다.")
+                continue
+
+            results.append(
+                {
+                    "post_num": post_num,
+                    "content": content,
+                    "crawled_at": datetime.now(timezone.utc).isoformat(),
+                }
+            )
+
+            print(f"게시글 {post_num} 수집 성공: {len(content)}자")
+
+        except PlaywrightTimeoutError:
+            print(f"게시글 {post_num}: 페이지 또는 본문 로딩 시간 초과")
+
+        except Exception as e:
+            print(f"게시글 {post_num}: 수집 실패 - {e}")
+
+    return results
+
+
+def save_contents(rows: list[dict]) -> int:
+    """수집한 본문과 수집 시각을 content_DB에 저장한다."""
+    if not rows:
+        print("저장할 정상 수집 결과가 없습니다.")
+        return 0
+
+    try:
+        response = (
+            supabase.table(TARGET_DB)
+            .upsert(rows, on_conflict="post_num")
+            .execute()
+        )
+
+        saved_count = len(response.data) if response.data else len(rows)
+        print(f"Supabase 저장 완료: {saved_count}건")
+        return saved_count
+
+    except Exception as e:
+        print(f"Supabase 저장 실패: {e}")
+        raise
+
+
+async def main() -> None:
+    print("Content_crawler.py 실행")
+
+    sync_post_numbers()
+
+    target_post_numbers = get_target_post_numbers()
+
+    if not target_post_numbers:
+        print("수집할 신규 게시글이 없습니다.")
+        return
+
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=HEADLESS)
+
+        try:
+            page = await browser.new_page()
+            results = await crawl_contents(page, target_post_numbers)
+        finally:
+            await browser.close()
+
+    save_contents(results)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
