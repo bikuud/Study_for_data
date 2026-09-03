@@ -1,0 +1,54 @@
+name: DCInside Crawler
+
+on:
+  # 수동 실행 버튼도 같이 제공
+  workflow_dispatch:
+
+  # 정기 실행
+  schedule:
+    # 매시 10분 KST 실행
+    # GitHub cron은 UTC 기준이므로 KST(UTC+9) 10분 -> UTC 1분
+    - cron: "1 * * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python packages
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Install Chromium and dependencies
+        run: python -m playwright install --with-deps chromium
+
+      - name: Run crawler
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: python Crawler.py
+
+      # 실패했을 때만 화면/HTML을 Actions 결과물로 보존
+      - name: Upload debug files
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crawler-debug-files
+          path: |
+            debug_timeout.png
+            debug_timeout.html
+          if-no-files-found: ignore
+          retention-days: 7
