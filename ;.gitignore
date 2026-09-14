@@ -1,3 +1,5 @@
 pycache/*.py[cod]*$py.class.venv/venv/env/
 
 .DS_Store Thumbs.db 
+
+*.pdf
