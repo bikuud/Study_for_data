@@ -1,1 +1,8 @@
-Practice/Kaggle/Data/Pokemon TCG/Card_ID List_EN.pdf Practice/Kaggle/Data/Pokemon TCG/Card_ID List_EN_.pdf Practice/Kaggle/Data/Pokemon TCG/Card_ID List_JP.pdf Practice/Kaggle/Data/Pokemon TCG/Card_ID List_JP_.pdf
+pycache/*.py[cod]*$py.class.venv/venv/env/
+
+.DS_Store Thumbs.db 
+
+*.pdf
+# Pokemon TCG 대용량 원본 PDF
+Practice/Kaggle/Data/Pokemon TCG/Card_ID List_EN.pdf
+Practice/Kaggle/Data/Pokemon TCG/Card_ID List_JP.pdf
