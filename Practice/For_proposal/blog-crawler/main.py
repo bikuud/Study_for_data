@@ -9,7 +9,7 @@ from supabase import create_client
 from datetime import datetime, timezone
 import os
 from dotenv import load_dotenv
-load_dotenv(dotenv_path='.env')
+load_dotenv(dotenv_path=os.getenv("ENV_FILE", ".env"))
 
 supabase_client=create_client(
      os.environ["SUPABASE_URL"],
